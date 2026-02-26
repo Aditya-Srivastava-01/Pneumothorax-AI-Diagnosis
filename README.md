@@ -3,8 +3,8 @@
 An end-to-end Deep Learning system to detect lung collapse (Pneumothorax) from DICOM and standard radiographs. This project demonstrates an engineering evolution from a ResNet-50 baseline to a high-resolution EfficientNet-B4 production model.
 
 ## 🔗 Project Links
-- **Live Demo:** [Link to your Hugging Face Space]
-- **Technical Presentation:** [Link to your Grad-CAM results]
+- **Live Demo:** https://huggingface.co/spaces/Aditya-Srivastava-01/pneumothorax-ai-dashboard
+- **Technical Presentation:** https://huggingface.co/Aditya-Srivastava-01/pneumothorax-b4-weights
 
 ## 📊 Technical Performance (ResNet vs. EfficientNet)
 | Metric | Baseline (ResNet-50) | Production (EfficientNet-B4) |
@@ -29,3 +29,4 @@ An end-to-end Deep Learning system to detect lung collapse (Pneumothorax) from D
 - `/weights`: Contains the trained EfficientNet-B4 model checkpoints.
 - `app.py`: Main Streamlit dashboard code.
 - `engine.py`: AI inference and Grad-CAM logic.
+
