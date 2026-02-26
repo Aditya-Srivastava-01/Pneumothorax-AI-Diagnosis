@@ -21,6 +21,14 @@ if os.path.exists("best_efficientnet_model.pth"):
             ds = pydicom.dcmread(uploaded_file)
             img = ds.pixel_array.astype(float)
             
+            # --- FIX 1: REMOVE EXTRA DIMENSIONS (SQUEEZE) ---
+            # This turns (1, 1024, 1024) into (1024, 1024)
+            img = np.squeeze(img)
+            
+            # If it's a 3D volume, just take the first slice
+            if len(img.shape) > 2:
+                img = img[0]
+
             # 1. Handle Monochrome Inversion
             if getattr(ds, "PhotometricInterpretation", "") == "MONOCHROME1":
                 img = np.max(img) - img
@@ -29,28 +37,25 @@ if os.path.exists("best_efficientnet_model.pth"):
             img = (img - np.min(img)) / (np.max(img) - np.min(img) + 1e-6)
             img = (img * 255).astype(np.uint8)
             
-            # 3. Apply CLAHE (Contrast Enhancement)
+            # --- FIX 2: APPLY CLAHE ON CLEAN 2D ARRAY ---
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
             img = clahe.apply(img)
             
-            # 4. BULLETPROOF RGB CONVERSION (Replacing cv2.cvtColor)
-            # This stacks the grayscale image 3 times to create RGB. 
-            # It never crashes, even if the DICOM shape is weird.
-            if len(img.shape) == 2:
-                img_rgb = np.stack([img]*3, axis=-1)
-            else:
-                # If it's already got channels, just take the first 3
-                img_rgb = img[:, :, :3]
+            # 3. BULLETPROOF RGB CONVERSION
+            img_rgb = np.stack([img]*3, axis=-1)
 
-            # 5. Run AI Inference
-            diag, prob, heat = engine.predict(img_rgb)
+            # 4. Run AI Inference
+            with st.spinner('AI is analyzing imagery...'):
+                diag, prob, heat = engine.predict(img_rgb)
             
-            # 6. UI Display
+            # 5. UI Display
             col1, col2 = st.columns(2)
             with col1: 
-                st.image(img_rgb, caption="Original X-ray", use_container_width=True)
+                st.subheader("Original Radiograph")
+                st.image(img_rgb, use_container_width=True)
             with col2: 
-                st.image(heat, caption="AI Localization (Grad-CAM)", use_container_width=True)
+                st.subheader("AI Localization (Grad-CAM)")
+                st.image(heat, use_container_width=True)
             
             if "DETECTED" in diag:
                 st.error(f"**{diag}** (Confidence: {prob:.2%})")
