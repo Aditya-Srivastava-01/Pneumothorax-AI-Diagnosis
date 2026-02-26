@@ -19,36 +19,47 @@ if os.path.exists("best_efficientnet_model.pth"):
     if uploaded_file:
         try:
             ds = pydicom.dcmread(uploaded_file)
-            img = ds.pixel_array.astype(float)
+            img = ds.pixel_array
             
-            # --- FIX 1: REMOVE EXTRA DIMENSIONS (SQUEEZE) ---
-            # This turns (1, 1024, 1024) into (1024, 1024)
-            img = np.squeeze(img)
+            # --- ROBUST DIMENSION FIX (Fixes the Streaks) ---
+            # 1. Handle "Fake" DICOMs that might be RGB already or have extra dimensions
+            if len(img.shape) == 3:
+                # If it's (Rows, Cols, 3), convert to grayscale first
+                if img.shape[2] == 3:
+                    img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_RGB2GRAY)
+                else:
+                    # If it's (Slices, Rows, Cols), take the middle slice
+                    img = img[img.shape[0] // 2]
+            elif len(img.shape) == 4:
+                # Handle Video DICOMs
+                img = img[0, :, :, 0]
             
-            # If it's a 3D volume, just take the first slice
-            if len(img.shape) > 2:
-                img = img[0]
+            img = np.squeeze(img).astype(float)
 
-            # 1. Handle Monochrome Inversion
+            # 2. Handle Monochrome Inversion
             if getattr(ds, "PhotometricInterpretation", "") == "MONOCHROME1":
                 img = np.max(img) - img
                 
-            # 2. Normalize to 0-255 safely
+            # 3. Safe Normalization (Fixes the Grey Box)
             img = (img - np.min(img)) / (np.max(img) - np.min(img) + 1e-6)
             img = (img * 255).astype(np.uint8)
             
-            # --- FIX 2: APPLY CLAHE ON CLEAN 2D ARRAY ---
+            # 4. Resize to a clean 512x512 square BEFORE stacking
+            # This is the most important step to stop the "Horizontal Streaks"
+            img = cv2.resize(img, (512, 512), interpolation=cv2.INTER_AREA)
+            
+            # 5. Apply CLAHE
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
             img = clahe.apply(img)
             
-            # 3. BULLETPROOF RGB CONVERSION
+            # 6. Final RGB Stack
             img_rgb = np.stack([img]*3, axis=-1)
 
-            # 4. Run AI Inference
+            # 7. Run AI Inference
             with st.spinner('AI is analyzing imagery...'):
                 diag, prob, heat = engine.predict(img_rgb)
             
-            # 5. UI Display
+            # 8. UI Display
             col1, col2 = st.columns(2)
             with col1: 
                 st.subheader("Original Radiograph")
